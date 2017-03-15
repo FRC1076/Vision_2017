@@ -1,0 +1,8 @@
+#
+# Set static IP address on the ethernet interface
+# Driver cams should use 17 and 19
+# Vision pi should use 13
+#
+interface eth0
+static ip_address=10.10.76.13/24
+static domain_name_servers=10.10.76,1

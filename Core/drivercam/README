@@ -1,0 +1,4 @@
+1.  Edit the dhcp changes file to set the proper static address.
+2.  Edit the stream-pi-video.sh to use the correct port.
+3.  Run the setup script.
+4.  Test well before a reboot.
