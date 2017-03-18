@@ -253,7 +253,7 @@ cap = cv2.VideoCapture(camera)
 if cv2.__version__ == '3.1.0':
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
-    cap.set(cv2.CAP_PROP_FPS, 60)
+    cap.set(cv2.CAP_PROP_FPS, 30)
 else:
     cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 240)
