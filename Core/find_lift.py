@@ -30,6 +30,8 @@ fps_last_time = 0
 fps = 0
 fps_count = 0
 
+print("Keys:\nEsc exit\np toggling print\ni toggle updating images\ns save filter values\n");
+
 # log every grab_periodTH image
 grab_period = 10
 
@@ -49,7 +51,6 @@ if "log-images" in sys.argv:
     grabbing = True
 else:
     grabbing = False
-
 
 def restart_program(input1, input2):
     try:
@@ -252,7 +253,7 @@ cap = cv2.VideoCapture(camera)
 if cv2.__version__ == '3.1.0':
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
-    cap.set(cv2.CAP_PROP_FPS, 30)
+    cap.set(cv2.CAP_PROP_FPS, 60)
 else:
     cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 240)
@@ -262,7 +263,9 @@ else:
 # This doesn't run on systems that don't have this
 #
 try:
+    x = 1
     subprocess.Popen('v4l2-ctl --device=/dev/video0 -c gain_automatic=0 -c white_balance_automatic=0 -c exposure=35 -c gain=0 -c auto_exposure=1 -c brightness=0 -c hue=-32 -c saturation=96'.split())
+    time.sleep(1)
 except:
     print('Unable to set exposure using v4l2-ctl tool!')
 
@@ -341,6 +344,8 @@ while 1:
         k = cv2.waitKey(1) & 0xFF
         if k == 27:  # Exit when the escape key is hit
             break
+        if k == ord('i'):
+            im_show = not im_show
         if k == ord('p'):
             printer = not printer
         if k == ord('s'):
