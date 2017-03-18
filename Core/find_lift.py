@@ -1,13 +1,15 @@
 #
-# Code to find Cube for the WAPUR challenge and send range and heading information via UDP
+# Code to find the gear lift for the FRC 2017 Steamworks game.
+# Sends range and heading information via UDP
 # Type this to run interactively:
 # python find_lift.py 127.0.0.1 interactive
-
+#
 from __future__ import division
 
 import numpy as np
 import cv2
 import sys
+import logging
 import time
 import json
 import socket
@@ -15,13 +17,21 @@ import subprocess
 from udp_channels import UDPChannel
 from sensor_message import RobotMessage
 from image_grabber import ImageGrabber
+
+# set to true if you want images logged
+grabbing = True
+
 import psutil
 import logging
 import os
+import time
 
-# log every 20th image
+fps_last_time = 0
+fps = 0
+fps_count = 0
+
+# log every grab_periodTH image
 grab_period = 10
-
 
 tx_udp = True
 if "interactive" in sys.argv:
@@ -51,6 +61,17 @@ def restart_program(input1, input2):
 
     python = sys.executable
     os.execl(os.path.realpath(__file__), input1, input2)
+
+
+def receive_messages(im_show, sliders, printer, wait):
+    data, address = sock.recvfrom(4096)
+    if (data == "Toggle Interactive Mode") and imshow:
+        restart_program("not_interactive")
+    else:
+        restart_program("127.0.0.1", "interactive")
+    if data:
+        sent = sock.sendto(data, address)
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s', filename="/var/log/vision.log")
 logger = logging.getLogger(__name__)
@@ -222,7 +243,6 @@ def find_distance(contour, width, height):
     else:
         return 9999
 
-
 def nothing(x):
     pass
 
@@ -232,7 +252,7 @@ cap = cv2.VideoCapture(camera)
 if cv2.__version__ == '3.1.0':
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
-    cap.set(cv2.CAP_PROP_FPS, 10)
+    cap.set(cv2.CAP_PROP_FPS, 30)
 else:
     cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 240)
@@ -242,204 +262,216 @@ else:
 # This doesn't run on systems that don't have this
 #
 try:
-    subprocess.Popen(
-        'v4l2-ctl --device=/dev/video0 -c gain_automatic=0 -c white_balance_automatic=0 -c exposure=35 -c gain=0 -c auto_exposure=1 -c brightness=0 -c hue=-32 -c saturation=96'.split())
+    subprocess.Popen('v4l2-ctl --device=/dev/video0 -c gain_automatic=0 -c white_balance_automatic=0 -c exposure=35 -c gain=0 -c auto_exposure=1 -c brightness=0 -c hue=-32 -c saturation=96'.split())
 except:
     print('Unable to set exposure using v4l2-ctl tool!')
 
 if sliders:
-    # creates slider windows
-    lower = np.zeros((300, 512, 3), np.uint8)
-    cv2.namedWindow('lower')
-    upper = np.zeros((300, 512, 3), np.uint8)
-    cv2.namedWindow('upper')
+    # creates slider windows1
+    
+    cv2.namedWindow('HSV Filter', cv2.WINDOW_NORMAL)
 
     # creates the rgb trackbars
-    cv2.createTrackbar('H', 'lower', 0, 255, nothing)
-    cv2.createTrackbar('S', 'lower', 0, 255, nothing)
-    cv2.createTrackbar('V', 'lower', 0, 255, nothing)
-    cv2.createTrackbar('H', 'upper', 0, 255, nothing)
-    cv2.createTrackbar('S', 'upper', 0, 255, nothing)
-    cv2.createTrackbar('V', 'upper', 0, 255, nothing)
+    cv2.createTrackbar('Hue upper', 'HSV Filter', 0, 255, nothing)
+    cv2.createTrackbar('Hue lower', 'HSV Filter', 0, 255, nothing)
+    cv2.createTrackbar('Val upper', 'HSV Filter', 0, 255, nothing)
+    cv2.createTrackbar('Val lower', 'HSV Filter', 0, 255, nothing)
+    cv2.createTrackbar('Sat upper', 'HSV Filter', 0, 255, nothing)
+    cv2.createTrackbar('Sat lower', 'HSV Filter', 0, 255, nothing)
 
-    cv2.setTrackbarPos('H', 'lower', lower_h)
-    cv2.setTrackbarPos('S', 'lower', lower_s)
-    cv2.setTrackbarPos('V', 'lower', lower_v)
-    cv2.setTrackbarPos('H', 'upper', upper_h)
-    cv2.setTrackbarPos('S', 'upper', upper_s)
-    cv2.setTrackbarPos('V', 'upper', upper_v)
+    cv2.setTrackbarPos('Hue lower', 'HSV Filter', lower_h)
+    cv2.setTrackbarPos('Sat lower', 'HSV Filter', lower_s)
+    cv2.setTrackbarPos('Val lower', 'HSV Filter', lower_v)
+    cv2.setTrackbarPos('Hue upper', 'HSV Filter', upper_h)
+    cv2.setTrackbarPos('Sat upper', 'HSV Filter', upper_s)
+    cv2.setTrackbarPos('Val upper', 'HSV Filter', upper_v)
+    
+    # cv2.resizeWindow('HSV Filter', 500, 100)
 
-# sets up UDP sender
+#
+# Sets up UDP sender
+# Default is the typical robot ip address
+#
 if len(sys.argv) > 1:
     ip = sys.argv[1]
 else:
     ip = '10.10.76.2'
+
+
 channel = None
-while channel is not None:
+while channel is None:
     try:
         channel = UDPChannel(remote_ip=ip, remote_port=5880,
                              local_ip='0.0.0.0', local_port=5888, timeout_in_seconds=0.001)
-        time.sleep(0.1)
     except:
-        print("Unable to create UDP channel")
+        print("Unable to create UDP channel, sleeping 1 sec and retry.")
 
+#
+# Just keep swimming
 while 1:
+    if fps_last_time != int(time.time()):
+        fps_last_time = int(time.time())
+        fps = fps_count
+        fps_count = 0
+    else:
+        fps_count = fps_count + 1
     try:
-        while 1:
-            try:
-                robot_data, robot_address = channel.receive_from()
-                print("YIKES!", robot_data)
-                message_from_robot = RobotMessage(robot_data)
-                if ((message_from_robot.sender == 'robot') and
-                        (message_from_robot.message == 'target')):
-                    try:
-                        set_thresholds(message_from_robot.color)
-                    except:
-                        print("Writing weird code has come back to bite us")
-                    logger.info("Robot changed target color to %s", message_from_robot.color)
-                    logger.info("Start grabbing images NOW!")
-                    grabbing = True
-            except socket.timeout as e:
-                logger.info("Timed out waiting for color setting: %s", e)
+        #
+        # Try to receive a control packet from the robot and process it.
+        #
+#        try:
+#            robot_data, robot_address = channel.receive_from()
+#            print("YIKES!", robot_data)
+#            message_from_robot = RobotMessage(robot_data)
+#            if ((message_from_robot.sender == 'robot') and
+#                (message_from_robot.message == 'target')):
+#                set_thresholds(message_from_robot.color)
+#                logger.info("Robot changed target color to %s", message_from_robot.color)
+#                logger.info("Start grabbing images NOW!")
+#                grabbing = True
+#        except socket.timeout as e:
+#            logger.info("Timed out waiting for message from robot : %s", e)
 
-            k = cv2.waitKey(5) & 0xFF
-            if k == 27:  # Exit when the escape key is hit
-                break
-            if k == ord('p'):
-                printer = not printer
-            if k == ord('s'):
-                config = {
-                    'lower_hue': lower_h,
-                    'lower_saturation': lower_s,
-                    'lower_value': lower_v,
-                    'upper_hue': upper_h,
-                    'upper_saturation': upper_s,
-                    'upper_value': upper_v,
-                    'exposure': exposure,
-                    'field_of_view': FIELD_OF_VIEW,
-                    'camera': camera
-                }
-                config_fp = open(config_file_pathname, 'w')
-                json.dump(config, config_fp)
-                config_fp.close()
 
-            start_time = time.time()
-            # captures each frame individually
-            ret, frame = None
-            if "test_mode" in sys.argv:
-                # Put the path of the test image here
-                frame = cv2.imread('/Users/cmonk/PycharmProjects/Vision-2016/TestImages/gearlift_6ft.jpeg')
-            else:
-                ret, frame = cap.read()
-            # frame = cv2.imread('D:\Proj\Vision-2016\TestImages\gearlift_2ft.jpeg')
-            height, width, channels = frame.shape
+        #
+        # In interactive mode (should we condition on this one?)
+        # respond to some single key commands
+        #
+        k = cv2.waitKey(1) & 0xFF
+        if k == 27:  # Exit when the escape key is hit
+            break
+        if k == ord('p'):
+            printer = not printer
+        if k == ord('s'):
+            config = {
+                'lower_hue': lower_h,
+                'lower_saturation': lower_s,
+                'lower_value': lower_v,
+                'upper_hue': upper_h,
+                'upper_saturation': upper_s,
+                'upper_value': upper_v,
+                'exposure': exposure,
+                'field_of_view': FIELD_OF_VIEW,
+                'camera': camera
+            }
+            config_fp = open(config_file_pathname, 'w')
+            json.dump(config, config_fp)
+            config_fp.close()
 
-            if im_show:
-                cv2.imshow('source', frame)
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        start_time = time.time()
+        # captures each frame individually
+        ret, frame = cap.read()
+        #frame = cv2.imread('TestImages/gearlift_2ft.jpeg')
+        height, width, channels = frame.shape
 
-            # converts frame from BGR to HSV
-            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-            if sliders:
-                # lower hsv values
-                lower_h = cv2.getTrackbarPos('H', 'lower')
-                lower_s = cv2.getTrackbarPos('S', 'lower')
-                lower_v = cv2.getTrackbarPos('V', 'lower')
+        if im_show:
+            cv2.imshow('source', frame)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-                # upper rgb values
-                upper_h = cv2.getTrackbarPos('H', 'upper')
-                upper_s = cv2.getTrackbarPos('S', 'upper')
-                upper_v = cv2.getTrackbarPos('V', 'upper')
+        # converts frame from BGR to HSV
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        if sliders:
+            # lower hsv values
+            lower_h = cv2.getTrackbarPos('Hue lower', 'HSV Filter')
+            lower_s = cv2.getTrackbarPos('Sat lower', 'HSV Filter')
+            lower_v = cv2.getTrackbarPos('Val lower', 'HSV Filter')
 
-            # range of HSV color values
-            lower_green = np.array([lower_h, lower_s, lower_v])
-            upper_green = np.array([upper_h, upper_s, upper_v])
+            # upper rgb values
+            upper_h = cv2.getTrackbarPos('Hue upper', 'HSV Filter')
+            upper_s = cv2.getTrackbarPos('Sat upper', 'HSV Filter')
+            upper_v = cv2.getTrackbarPos('Val upper', 'HSV Filter')
 
-            # creates a bw image using the above range of values
-            mask = cv2.inRange(hsv, lower_green, upper_green)
+        # range of HSV color values
+        lower_green = np.array([lower_h, lower_s, lower_v])
+        upper_green = np.array([upper_h, upper_s, upper_v])
 
-            # sets the dilation and erosion factor
-            kernel = np.ones((2, 2), np.uint8)
-            dots = np.ones((3, 3), np.uint8)
-            # erodes and dilates the image
-            if im_show:
-                cv2.imshow('After cv2.inRange', mask)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, dots)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, dots)
-            # dilates and erodes the image
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-            if im_show:
-                cv2.imshow('After cv2.morphologyEx', mask)
+        # creates a bw image using the above range of values
+        mask = cv2.inRange(hsv, lower_green, upper_green)
 
-            if cv2.__version__ == '3.1.0':
-                dontcare, contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            else:
-                contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            cube_found = False  # count number of contours that match our tests for cubes
+        # sets the dilation and erosion factor
+        kernel = np.ones((2, 2), np.uint8)
+        dots = np.ones((3, 3), np.uint8)
+        # erodes and dilates the image
+        if im_show:
+            cv2.imshow('After cv2.inRange', mask)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, dots)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, dots)
+        # dilates and erodes the image
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        if im_show:
+            cv2.imshow('After cv2.morphologyEx', mask)
 
-            count = 0  # count times through the loop below
-            tape_heading = []
-            tape_distance = []
-            for contour in contours:
-                count += 1
-                is_aspect_ok = (0.28 < aspect_ratio(contour) < 1.5)
-                is_area_ok = (25 < cv2.contourArea(contour) < 20000)
-                if not is_area_ok:
-                    # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
-                    continue  # jump to bottom of for loop
-                if not is_aspect_ok:
-                    print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
-                    continue  # jump to bottom of for loop
-                # Find the heading of this tape
-                heading = find_heading(contour, width, height)
-                tape_heading.append(heading)
-                # determines the distance of this tape
-                distance = find_distance(contour, width, height)
-                tape_distance.append(distance)
-            if len(tape_heading) == 2:
-                #
-                # Note, we negate the heading that we send to the rio so it looks
-                # more like it is a gyro and the robot is trying to drive straight.
-                #
-                data = {
-                    "sender": "vision",
-                    "range": distance,
-                    "heading": (tape_heading[0] + tape_heading[1]) / -2,
-                    "average range": (tape_distance[0] + tape_distance[1]) / 2,
-                    "message": "range and heading",
-                    "status": "ok",
-                }
-                message = json.dumps(data)
-                # Transmit the message
-                if tx_udp:
-                    channel.send_to(message)
+        if cv2.__version__ == '3.1.0':
+            dontcare, contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        else:
+            contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        cube_found = False  # count number of contours that match our tests for cubes
+        count = 0  # count times through the loop below
+        tape_heading = []
+        tape_distance = []
+        for contour in contours:
+            count += 1
+            is_aspect_ok = (0.28 < aspect_ratio(contour) < 1.5)
+            is_area_ok = (25 < cv2.contourArea(contour) < 20000)
+            if not is_area_ok:
+                # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
+                continue  # jump to bottom of for loop
+            if not is_aspect_ok:
+                # sprint("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
+                continue  # jump to bottom of for loop
+            # Find the heading of this tape
+            heading = find_heading(contour, width, height)
+            tape_heading.append(heading)
+            # determines the distance of this tape
+            distance = find_distance(contour, width, height)
+            tape_distance.append(distance)
+        if len(tape_heading) == 2:
+            #
+            # Note, we negate the heading that we send to the rio so it looks
+            # more like it is a gyro and the robot is trying to drive straight.
+            #
+            data = {
+                "heading": (tape_heading[0] + tape_heading[1]) / -2,
+                "range": distance,
+                "status": "ok",
+                "sender": "vision",
+                "average range": (tape_distance[0] + tape_distance[1]) / 2,
+                "message": "range and heading",
+                "fps": fps
+            }
+            message = json.dumps(data)
+            # Transmit the message
+            if tx_udp:
+                channel.send_to(message)
+            if printer:
+                print("Tx:" + message)
+            logger.info(message)
+        else:
+            data = {
+                "sender": "vision",
+                "message": "range and heading",
+                "status": "no target",
+                "fps": fps
+            }
+            message = json.dumps(data)
+
+            if tx_udp:
+                channel.send_to(message)
                 if printer:
                     print("Tx:" + message)
-                logger.info(message)
-            else:
-                data = {
-                    "sender": "vision",
-                    "message": "range and heading",
-                    "status": "no target",
-                }
-                message = json.dumps(data)
+                logging.info(message)
+        if grabbing:
+            grabber.grab(frame, message)
 
-                if tx_udp:
-                    channel.send_to(message)
-                    if printer:
-                        print("Tx:" + message)
-                    logging.info(message)
-            if grabbing:
-                grabber.grab(frame, message)
-            time.sleep(.1)
-            if wait:
-                if not im_show:
-                    cv2.namedWindow('waitkey placeholder')
-                k = cv2.waitKey(0)
-                if k == 27:  # wait for ESC key to exit
-                    cv2.destroyAllWindows()
-                    print(tape_heading)
-                    break
+        if wait:
+            if not im_show:
+                cv2.namedWindow('waitkey placeholder')
+            k = cv2.waitKey(0)
+            if k == 27:  # wait for ESC key to exit
+                cv2.destroyAllWindows()
+                print(tape_heading)
+                break
     except:
         print("Exception Caught")
