@@ -286,7 +286,7 @@ if sliders:
     cv2.setTrackbarPos('Sat upper', 'HSV Filter', upper_s)
     cv2.setTrackbarPos('Val upper', 'HSV Filter', upper_v)
     
-    # cv2.resizeWindow('HSV Filter', 500, 100)
+    cv2.resizeWindow('HSV Filter', 500, 100)
 
 #
 # Sets up UDP sender
@@ -305,6 +305,7 @@ while channel is None:
                              local_ip='0.0.0.0', local_port=5888, timeout_in_seconds=0.001)
     except:
         print("Unable to create UDP channel, sleeping 1 sec and retry.")
+        time.sleep(1)
 
 #
 # Just keep swimming
@@ -419,7 +420,9 @@ while 1:
                 # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
                 continue  # jump to bottom of for loop
             if not is_aspect_ok:
+
                 # sprint("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
+                print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
                 continue  # jump to bottom of for loop
             # Find the heading of this tape
             heading = find_heading(contour, width, height)
@@ -464,7 +467,11 @@ while 1:
                 logging.info(message)
         if grabbing:
             grabber.grab(frame, message)
-
+            #
+            # I do not think we really want to sleep here...
+            # MMMMUUUSSSSSTTT KKKKEEEEEPPPPPP  RRRRRUUNNNIIINNNGGGG
+            # time.sleep(.1)
+            # Is not this code totally redundant because it occurs earlier?
         if wait:
             if not im_show:
                 cv2.namedWindow('waitkey placeholder')
