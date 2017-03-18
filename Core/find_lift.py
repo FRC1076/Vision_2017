@@ -30,7 +30,7 @@ fps_last_time = 0
 fps = 0
 fps_count = 0
 
-print("Keys:\nEsc exit\np toggling print\ni toggle updating images\ns save filter values\n");
+print("Keys:\nEsc - exit\np - toggling print\ni - toggle updating images\ns - save filter values\n");
 
 # log every grab_periodTH image
 grab_period = 10
@@ -85,7 +85,7 @@ grabber = ImageGrabber(logger, grab_period=grab_period, grab_limit=4000)
 #     server_address = ('localhost', 10000)
 #     sock.bind(server_address)
 # except:
-#     print("Crap")
+#     print("Shucks")
 
 # These are the hue saturation value
 # This works for close-up
@@ -336,7 +336,6 @@ while 1:
 #        except socket.timeout as e:
 #            logger.info("Timed out waiting for message from robot : %s", e)
 
-
         #
         # In interactive mode (should we condition on this one?)
         # respond to some single key commands
@@ -425,9 +424,8 @@ while 1:
                 # print("Contour fails area test:", cv2.contourArea(contour), "Contour:", count, " of ", len(contours))
                 continue  # jump to bottom of for loop
             if not is_aspect_ok:
-
                 # sprint("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
-                print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
+                # print("Contour fails aspect test:", aspect_ratio(contour), "Contour:", count, " of ", len(contours))
                 continue  # jump to bottom of for loop
             # Find the heading of this tape
             heading = find_heading(contour, width, height)
@@ -472,18 +470,6 @@ while 1:
                 logging.info(message)
         if grabbing:
             grabber.grab(frame, message)
-            #
-            # I do not think we really want to sleep here...
-            # MMMMUUUSSSSSTTT KKKKEEEEEPPPPPP  RRRRRUUNNNIIINNNGGGG
-            # time.sleep(.1)
-            # Is not this code totally redundant because it occurs earlier?
-        if wait:
-            if not im_show:
-                cv2.namedWindow('waitkey placeholder')
-            k = cv2.waitKey(0)
-            if k == 27:  # wait for ESC key to exit
-                cv2.destroyAllWindows()
-                print(tape_heading)
-                break
+
     except:
         print("Exception Caught")
