@@ -21,7 +21,7 @@ from image_grabber import ImageGrabber
 # set to true if you want images logged
 grabbing = True
 
-import psutil
+#import psutil
 import logging
 import os
 import time
@@ -255,9 +255,9 @@ if cv2.__version__ == '3.1.0':
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
     cap.set(cv2.CAP_PROP_FPS, 30)
 else:
-    cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 320)
-    cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 240)
-    cap.set(cv2.cv.CV_CAP_PROP_FPS, 30)
+    cap.set(cv2.CV_CAP_PROP_FRAME_WIDTH, 320)
+    cap.set(cv2.CV_CAP_PROP_FRAME_HEIGHT, 240)
+    cap.set(cv2.CV_CAP_PROP_FPS, 30)
 
 #
 # This doesn't run on systems that don't have this
@@ -271,7 +271,7 @@ except:
 
 if sliders:
     # creates slider windows1
-    
+
     cv2.namedWindow('HSV Filter', cv2.WINDOW_NORMAL)
 
     # creates the rgb trackbars
@@ -288,7 +288,7 @@ if sliders:
     cv2.setTrackbarPos('Hue upper', 'HSV Filter', upper_h)
     cv2.setTrackbarPos('Sat upper', 'HSV Filter', upper_s)
     cv2.setTrackbarPos('Val upper', 'HSV Filter', upper_v)
-    
+
     cv2.resizeWindow('HSV Filter', 500, 100)
 
 #
@@ -365,8 +365,8 @@ while 1:
 
         start_time = time.time()
         # captures each frame individually
-        ret, frame = cap.read()
-        #frame = cv2.imread('TestImages/gearlift_2ft.jpeg')
+        #ret, frame = cap.read()
+        frame = cv2.imread('/Users/cbmonk/Downloads/cube-green5.jpg')
         height, width, channels = frame.shape
 
         if im_show:
