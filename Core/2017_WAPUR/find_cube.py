@@ -16,9 +16,6 @@ while(True):
     no_noise = cv2.morphologyEx(close_gaps, cv2.MORPH_OPEN, kernel)
     dilate = cv2.dilate(no_noise, kernel, iterations=1)
 
-    im2, contours, hierarchy = cv2.findContours(dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(dilate, contours, -1, (0,255,0), 3)
-
     cv2.imshow("Modified Video", dilate)
     cv2.imshow("Original Video", frame)
 
