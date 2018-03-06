@@ -5,4 +5,4 @@
 #
 interface eth0
 static ip_address=10.10.76.13/24
-static domain_name_servers=10.10.76,1
+static domain_name_servers=10.10.76.1
